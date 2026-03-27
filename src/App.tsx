@@ -9,11 +9,13 @@ import { useRotoRankings } from '@/hooks/useRotoRankings'
 import { useTeamOptionsForLeague, type PlayerAvailFilter } from '@/hooks/useFilteredPlayers'
 import { NewsProvider, useNews } from '@/context/NewsContext'
 import { OddsProvider } from '@/context/OddsContext'
+import { PredictionProvider } from '@/context/PredictionContext'
+import { AIScoreboard } from '@/components/AIScoreboard'
 import { OddsMonitor } from '@/components/OddsMonitor'
 import { NewsMailbox } from '@/components/NewsMailbox'
 import { NewsPanel } from '@/components/NewsPanel'
 
-type View = 'draft' | 'consensus' | 'matchup'
+type View = 'draft' | 'consensus' | 'matchup' | 'aiScoreboard'
 
 function AppShell() {
   const { unreadCount } = useNews()
@@ -132,6 +134,17 @@ function AppShell() {
             >
               Matchup analyzer
             </button>
+            <button
+              type="button"
+              onClick={() => setView('aiScoreboard')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'aiScoreboard'
+                  ? 'bg-blue-600 text-white dark:bg-blue-600'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+              }`}
+            >
+              AI Scoreboard
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <NewsMailbox unreadCount={unreadCount} onClick={() => setNewsOpen((o) => !o)} />
@@ -162,6 +175,8 @@ function AppShell() {
 
         {view === 'matchup' ? (
           <MatchupAnalyzer />
+        ) : view === 'aiScoreboard' ? (
+          <AIScoreboard />
         ) : view === 'draft' ? (
           <BigBoard
             playersById={playersById}
@@ -240,7 +255,9 @@ export default function App() {
   return (
     <OddsProvider>
       <NewsProvider>
-        <AppShell />
+        <PredictionProvider>
+          <AppShell />
+        </PredictionProvider>
       </NewsProvider>
     </OddsProvider>
   )

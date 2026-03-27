@@ -17,6 +17,7 @@ const PARK_FACTOR_BY_VENUE: Record<string, number> = {
   'Oakland Coliseum': 0.96,
   'Wrigley Field': 1.02,
   'Dodger Stadium': 0.97,
+  'Daikin Park': 1.02,
 }
 
 export function getParkFactorForVenue(venue: string): number {
@@ -25,7 +26,7 @@ export function getParkFactorForVenue(venue: string): number {
 
 export type RunProjectionSignal = 'green' | 'yellow' | 'red'
 
-function blendedEraVsLineup(lineup: LineupSlot[], splits: PitcherPlatoonSplits): number {
+export function blendedEraVsLineup(lineup: LineupSlot[], splits: PitcherPlatoonSplits): number {
   const n = lineup.length || 1
   let sum = 0
   for (const b of lineup) {
