@@ -82,6 +82,8 @@ export type RotoValues = {
 
 export type PlayerRole = 'hitter' | 'pitcher'
 
+export type PlayerType = 'hitter' | 'pitcher' | 'two-way'
+
 export type Player = {
   id: number
   /** Initial sort seed; board order is stored separately in draft state */
@@ -89,7 +91,10 @@ export type Player = {
   name: string
   pos: string
   team: string
+  league: 'AL' | 'NL'
   adp: number
+  /** Fantasy positional rank label (e.g. SP4, OF22) */
+  posRank?: string
   drafted: boolean
   fWAR: number
   writeup: string
@@ -98,6 +103,8 @@ export type Player = {
   hitting?: HittingStats
   pitching?: PitchingStats
   advanced: AdvancedStats
+  /** Two-way only (e.g. Shohei Ohtani): pitching advanced when `advanced` is hitting */
+  pitchingAdvanced?: PitchingAdvanced
   roto: RotoValues
 }
 
@@ -116,3 +123,23 @@ export type RotoKey = (typeof ROTO_KEYS)[number]
 
 /** Lower stat value is better for these categories */
 export const ROTO_LOWER_IS_BETTER: ReadonlySet<RotoKey> = new Set(['whip', 'era'])
+
+const ROTO_HITTER_KEYS: RotoKey[] = ['obp', 'slg', 'hr', 'netSb']
+const ROTO_PITCHER_KEYS: RotoKey[] = ['kbbPct', 'whip', 'era', 'svH']
+
+export function getPlayerType(pos: string, name: string): PlayerType {
+  if (name === 'Shohei Ohtani') return 'two-way'
+  const tokens = pos.split(/[/,]/).map((s) => s.trim().toUpperCase())
+  if (tokens.some((t) => t === 'SP' || t === 'RP')) return 'pitcher'
+  return 'hitter'
+}
+
+export function getRotoDisplayKeys(playerType: PlayerType): RotoKey[] {
+  if (playerType === 'hitter') return ROTO_HITTER_KEYS
+  if (playerType === 'pitcher') return ROTO_PITCHER_KEYS
+  return [...ROTO_KEYS]
+}
+
+export function showsRotoCategory(playerType: PlayerType, key: RotoKey): boolean {
+  return getRotoDisplayKeys(playerType).includes(key)
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Player } from '@/types/player'
+import { getPlayerType, getRotoDisplayKeys } from '@/types/player'
 import { PositionPill } from '@/components/PositionPill'
 import { StatGrid } from '@/components/StatGrid'
 import { RotoBar } from '@/components/RotoBar'
@@ -13,6 +14,8 @@ function initials(name: string) {
     .join('')
     .toUpperCase()
 }
+
+const sectionLabel = 'text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-4 first:mt-0 mb-2'
 
 type Props = {
   player: Player | null
@@ -57,6 +60,54 @@ export function PlayerCard({
   }, [player, boardRank])
 
   if (!player || !open) return null
+
+  const playerType = getPlayerType(player.pos, player.name)
+  const showHitting = playerType === 'hitter' || playerType === 'two-way'
+  const showPitching = playerType === 'pitcher' || playerType === 'two-way'
+  const rotoKeys = getRotoDisplayKeys(playerType)
+
+  const hittingStandard =
+    showHitting && player.hitting ? (
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 font-mono text-sm tabular-nums dark:border-zinc-800 dark:bg-zinc-900/50 sm:grid-cols-3">
+        <div>PA {player.hitting.pa}</div>
+        <div>AVG {player.hitting.avg.toFixed(3)}</div>
+        <div>OBP {player.hitting.obp.toFixed(3)}</div>
+        <div>SLG {player.hitting.slg.toFixed(3)}</div>
+        <div>OPS {player.hitting.ops.toFixed(3)}</div>
+        <div>HR {player.hitting.hr}</div>
+        <div>RBI {player.hitting.rbi}</div>
+        <div>SB {player.hitting.sb}</div>
+        <div>CS {player.hitting.cs}</div>
+        <div>BB% {player.hitting.bbPct.toFixed(1)}</div>
+        <div>K% {player.hitting.kPct.toFixed(1)}</div>
+      </div>
+    ) : null
+
+  const pitchingStandard =
+    showPitching && player.pitching ? (
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 font-mono text-sm tabular-nums dark:border-zinc-800 dark:bg-zinc-900/50 sm:grid-cols-3">
+        <div>IP {player.pitching.ip.toFixed(1)}</div>
+        <div>ERA {player.pitching.era.toFixed(2)}</div>
+        <div>WHIP {player.pitching.whip.toFixed(2)}</div>
+        <div>K/9 {player.pitching.k9.toFixed(1)}</div>
+        <div>BB/9 {player.pitching.bb9.toFixed(1)}</div>
+        <div>K-BB% {player.pitching.kbbPct.toFixed(1)}</div>
+        <div>FIP {player.pitching.fip.toFixed(2)}</div>
+        <div>xFIP {player.pitching.xfip.toFixed(2)}</div>
+        <div>Sv {player.pitching.sv}</div>
+        <div>Holds {player.pitching.holds}</div>
+      </div>
+    ) : null
+
+  const hittingAdvanced =
+    showHitting && player.advanced.kind === 'hitter' ? <StatGrid advanced={player.advanced} /> : null
+
+  const pitchingAdvanced =
+    showPitching && player.pitchingAdvanced ? (
+      <StatGrid advanced={player.pitchingAdvanced} />
+    ) : showPitching && player.advanced.kind === 'pitcher' ? (
+      <StatGrid advanced={player.advanced} />
+    ) : null
 
   return (
     <>
@@ -126,34 +177,26 @@ export function PlayerCard({
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               2024 standard line
             </h3>
-            {player.role === 'hitter' && player.hitting && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 font-mono text-sm tabular-nums dark:border-zinc-800 dark:bg-zinc-900/50 sm:grid-cols-3">
-                <div>PA {player.hitting.pa}</div>
-                <div>AVG {player.hitting.avg.toFixed(3)}</div>
-                <div>OBP {player.hitting.obp.toFixed(3)}</div>
-                <div>SLG {player.hitting.slg.toFixed(3)}</div>
-                <div>OPS {player.hitting.ops.toFixed(3)}</div>
-                <div>HR {player.hitting.hr}</div>
-                <div>RBI {player.hitting.rbi}</div>
-                <div>SB {player.hitting.sb}</div>
-                <div>CS {player.hitting.cs}</div>
-                <div>BB% {player.hitting.bbPct.toFixed(1)}</div>
-                <div>K% {player.hitting.kPct.toFixed(1)}</div>
-              </div>
-            )}
-            {player.role === 'pitcher' && player.pitching && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 font-mono text-sm tabular-nums dark:border-zinc-800 dark:bg-zinc-900/50 sm:grid-cols-3">
-                <div>IP {player.pitching.ip.toFixed(1)}</div>
-                <div>ERA {player.pitching.era.toFixed(2)}</div>
-                <div>WHIP {player.pitching.whip.toFixed(2)}</div>
-                <div>K/9 {player.pitching.k9.toFixed(1)}</div>
-                <div>BB/9 {player.pitching.bb9.toFixed(1)}</div>
-                <div>K-BB% {player.pitching.kbbPct.toFixed(1)}</div>
-                <div>FIP {player.pitching.fip.toFixed(2)}</div>
-                <div>xFIP {player.pitching.xfip.toFixed(2)}</div>
-                <div>Sv {player.pitching.sv}</div>
-                <div>Holds {player.pitching.holds}</div>
-              </div>
+            {playerType === 'two-way' ? (
+              <>
+                {hittingStandard && (
+                  <>
+                    <h4 className={sectionLabel}>Hitting</h4>
+                    {hittingStandard}
+                  </>
+                )}
+                {pitchingStandard && (
+                  <>
+                    <h4 className={sectionLabel}>Pitching</h4>
+                    {pitchingStandard}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {hittingStandard}
+                {pitchingStandard}
+              </>
             )}
           </section>
 
@@ -161,7 +204,27 @@ export function PlayerCard({
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               Advanced analytics
             </h3>
-            <StatGrid advanced={player.advanced} />
+            {playerType === 'two-way' ? (
+              <>
+                {hittingAdvanced && (
+                  <>
+                    <h4 className={sectionLabel}>Hitting</h4>
+                    {hittingAdvanced}
+                  </>
+                )}
+                {pitchingAdvanced && (
+                  <>
+                    <h4 className={sectionLabel}>Pitching</h4>
+                    {pitchingAdvanced}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {hittingAdvanced}
+                {pitchingAdvanced}
+              </>
+            )}
           </section>
 
           <section className="mt-6">
@@ -169,7 +232,7 @@ export function PlayerCard({
               Roto category ranks (pool)
             </h3>
             {rotoBreakdown ? (
-              <RotoBar byCategory={rotoBreakdown.byCategory} />
+              <RotoBar byCategory={rotoBreakdown.byCategory} keys={rotoKeys} />
             ) : (
               <p className="text-sm text-zinc-500">
                 Not in current roto pool (e.g. drafted while &quot;exclude drafted&quot; is on).

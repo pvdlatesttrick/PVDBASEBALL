@@ -27,9 +27,12 @@ function saveJson(key: string, value: unknown) {
 }
 
 const initialOrder = (): number[] => {
+  const fromPlayers = [...PLAYERS].sort((a, b) => a.rank - b.rank).map((p) => p.id)
   const saved = loadJson<number[] | null>(STORAGE_ORDER, null)
-  if (saved?.length) return saved
-  return [...PLAYERS].sort((a, b) => a.rank - b.rank).map((p) => p.id)
+  if (!saved?.length) return fromPlayers
+  const savedSet = new Set(saved)
+  const missing = fromPlayers.filter((id) => !savedSet.has(id))
+  return missing.length ? [...saved, ...missing] : saved
 }
 
 export function useDraftState() {
@@ -109,15 +112,6 @@ export function useDraftState() {
     })
   }, [])
 
-  const reorderDrag = useCallback((fromIndex: number, toIndex: number) => {
-    setOrder((prev) => {
-      const next = [...prev]
-      const [removed] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, removed)
-      return next
-    })
-  }, [])
-
   return {
     order,
     setOrder,
@@ -132,6 +126,5 @@ export function useDraftState() {
     excludeDraftedFromPool,
     setExcludeDraftedFromPool,
     moveInOrder,
-    reorderDrag,
   }
 }

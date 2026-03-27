@@ -1,9 +1,16 @@
-import { useCallback, useMemo, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Player } from '@/types/player'
 import type { RotoKey } from '@/types/player'
-import { ROTO_KEYS } from '@/types/player'
+import { ROTO_KEYS, getPlayerType, showsRotoCategory } from '@/types/player'
 import { PositionPill } from '@/components/PositionPill'
+import { FilterBar } from '@/components/FilterBar'
 import { getRotoValue, useRotoRankings } from '@/hooks/useRotoRankings'
+import {
+  useFilteredPlayerIds,
+  type PlayerAvailFilter,
+  type PlayerFilterState,
+} from '@/hooks/useFilteredPlayers'
 
 export type SortColumn =
   | 'board'
@@ -23,19 +30,44 @@ type Props = {
   setExcludeDraftedFromPool: (v: boolean) => void
   draftedMap: Record<number, boolean>
   toggleDrafted: (id: number) => void
-  reorderDrag: (fromIndex: number, toIndex: number) => void
   onOpenPlayer: (id: number) => void
+  search: string
+  onSearchChange: (v: string) => void
+  teamFilter: string
+  onTeamFilterChange: (v: string) => void
+  leagueFilter: PlayerFilterState['league']
+  onLeagueFilterChange: (v: PlayerFilterState['league']) => void
+  teams: string[]
+  positionTab: string
+  onPositionTabChange: (id: string) => void
+  availFilter: PlayerAvailFilter
+  onAvailFilterChange: (v: PlayerAvailFilter) => void
+  highlightPlayerId?: number | null
 }
 
-function posFilterMatch(player: Player, filter: string): boolean {
-  if (filter === 'all') return true
-  const p = player.pos.toUpperCase()
-  if (filter === 'SP') return p.includes('SP')
-  if (filter === 'RP') return p.includes('RP')
-  if (filter === 'C') return /\bC\b/.test(p) || p.startsWith('C/')
-  if (filter === 'IF') return /(1B|2B|3B|SS)/.test(p)
-  if (filter === 'OF') return p.includes('OF') || p.includes('DH')
-  return true
+function formatBigBoardRotoCell(p: Player, key: RotoKey): string {
+  const pt = getPlayerType(p.pos, p.name)
+  if (!showsRotoCategory(pt, key)) return '—'
+  switch (key) {
+    case 'obp':
+      return p.roto.obp.toFixed(3)
+    case 'slg':
+      return p.roto.slg.toFixed(3)
+    case 'hr':
+      return String(p.roto.hr)
+    case 'netSb':
+      return String(p.roto.netSb)
+    case 'kbbPct':
+      return getRotoValue(p, key).toFixed(1)
+    case 'whip':
+      return p.roto.whip.toFixed(2)
+    case 'era':
+      return p.roto.era.toFixed(2)
+    case 'svH':
+      return String(p.roto.svH)
+    default:
+      return '—'
+  }
 }
 
 export function BigBoard({
@@ -46,30 +78,43 @@ export function BigBoard({
   setExcludeDraftedFromPool,
   draftedMap,
   toggleDrafted,
-  reorderDrag,
   onOpenPlayer,
+  search,
+  onSearchChange,
+  teamFilter,
+  onTeamFilterChange,
+  leagueFilter,
+  onLeagueFilterChange,
+  teams,
+  positionTab,
+  onPositionTabChange,
+  availFilter,
+  onAvailFilterChange,
+  highlightPlayerId,
 }: Props) {
   const roto = useRotoRankings(playersById, poolIds)
   const [sortCol, setSortCol] = useState<SortColumn | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const [posFilter, setPosFilter] = useState<string>('all')
-  const [availFilter, setAvailFilter] = useState<'all' | 'available' | 'drafted'>('all')
-  const [search, setSearch] = useState('')
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
 
-  const filteredOrderedIds = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return order.filter((id) => {
-      const p = playersById.get(id)
-      if (!p) return false
-      if (q && !p.name.toLowerCase().includes(q)) return false
-      if (!posFilterMatch(p, posFilter)) return false
-      const d = draftedMap[id] ?? p.drafted
-      if (availFilter === 'available' && d) return false
-      if (availFilter === 'drafted' && !d) return false
-      return true
-    })
-  }, [order, playersById, search, posFilter, availFilter, draftedMap])
+  const playerFilters = useMemo<PlayerFilterState>(
+    () => ({
+      search,
+      team: teamFilter,
+      league: leagueFilter,
+      positionTab,
+      status: availFilter,
+    }),
+    [search, teamFilter, leagueFilter, positionTab, availFilter]
+  )
+
+  const filteredOrderedIds = useFilteredPlayerIds(order, playersById, draftedMap, playerFilters)
+
+  useEffect(() => {
+    if (!highlightPlayerId) return
+    const el = document.querySelector(`[data-board-player-id="${highlightPlayerId}"]`)
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlightPlayerId])
 
   const displayIds = useMemo(() => {
     if (!sortCol || sortCol === 'board') return filteredOrderedIds
@@ -109,6 +154,13 @@ export function BigBoard({
     return ids
   }, [filteredOrderedIds, sortCol, sortDir, playersById, roto, draftedMap])
 
+  const rowVirtualizer = useVirtualizer({
+    count: displayIds.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 44,
+    overscan: 14,
+  })
+
   const toggleSort = useCallback(
     (col: SortColumn) => {
       if (col === 'board') {
@@ -127,33 +179,6 @@ export function BigBoard({
 
   const sortActive = (col: SortColumn) =>
     col === 'board' ? sortCol === null || sortCol === 'board' : sortCol === col
-
-  const onDragStart = (index: number) => {
-    if (sortCol && sortCol !== 'board') return
-    setDragIndex(index)
-  }
-
-  const onDragOver = (e: DragEvent) => {
-    e.preventDefault()
-  }
-
-  const onDrop = (toIndex: number) => {
-    if (sortCol && sortCol !== 'board') return
-    if (dragIndex === null || dragIndex === toIndex) {
-      setDragIndex(null)
-      return
-    }
-    const fromId = displayIds[dragIndex]
-    const toId = displayIds[toIndex]
-    const fromFull = order.indexOf(fromId)
-    const toFull = order.indexOf(toId)
-    if (fromFull < 0 || toFull < 0) {
-      setDragIndex(null)
-      return
-    }
-    reorderDrag(fromFull, toFull)
-    setDragIndex(null)
-  }
 
   const headerBtn = (label: string, col: SortColumn) => {
     const active = sortActive(col)
@@ -179,38 +204,29 @@ export function BigBoard({
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mb-4 space-y-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Roto big board
           </h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            4×4-style categories · live roto points · drag rows when board sort is active
+            4×4-style categories · live roto points · virtualized rows (reorder from the player card)
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <input
-            type="search"
-            placeholder="Search name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="min-w-[180px] rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-          />
-          <select
-            value={posFilter}
-            onChange={(e) => setPosFilter(e.target.value)}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-          >
-            <option value="all">All positions</option>
-            <option value="C">C</option>
-            <option value="IF">IF</option>
-            <option value="OF">OF / DH</option>
-            <option value="SP">SP</option>
-            <option value="RP">RP</option>
-          </select>
+        <FilterBar
+          search={search}
+          onSearchChange={onSearchChange}
+          teamFilter={teamFilter}
+          onTeamFilterChange={onTeamFilterChange}
+          teams={teams}
+          leagueFilter={leagueFilter}
+          onLeagueFilterChange={onLeagueFilterChange}
+          positionTab={positionTab}
+          onPositionTabChange={onPositionTabChange}
+        >
           <select
             value={availFilter}
-            onChange={(e) => setAvailFilter(e.target.value as 'all' | 'available' | 'drafted')}
+            onChange={(e) => onAvailFilterChange(e.target.value as PlayerAvailFilter)}
             className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="all">All players</option>
@@ -225,12 +241,13 @@ export function BigBoard({
             />
             Exclude drafted from roto pool
           </label>
-        </div>
+        </FilterBar>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
-          <thead>
+        <div ref={tableScrollRef} className="max-h-[min(70vh,820px)] overflow-auto">
+        <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-white dark:bg-zinc-900">
             <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
               <th className="pb-2 pr-2">{headerBtn('Rank', 'board')}</th>
               <th className="pb-2 pr-2">{headerBtn('Player', 'name')}</th>
@@ -249,8 +266,23 @@ export function BigBoard({
               <th className="pb-2">{headerBtn('Taken', 'drafted')}</th>
             </tr>
           </thead>
-          <tbody>
-            {displayIds.map((id, idx) => {
+          <tbody
+            className="relative text-zinc-900 dark:text-zinc-100"
+            style={{
+              position: 'relative',
+              height: displayIds.length ? `${rowVirtualizer.getTotalSize()}px` : undefined,
+            }}
+          >
+            {displayIds.length === 0 && (
+              <tr>
+                <td colSpan={15} className="py-10 text-center text-sm text-zinc-500">
+                  No players match the current filters.
+                </td>
+              </tr>
+            )}
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const idx = virtualRow.index
+              const id = displayIds[idx]
               const p = playersById.get(id)!
               const rb = roto.get(id)
               const boardRank = idx + 1
@@ -259,15 +291,20 @@ export function BigBoard({
               const value = boardRank > p.adp
               return (
                 <tr
-                  key={id}
-                  draggable={sortCol === null || sortCol === 'board'}
-                  onDragStart={() => onDragStart(idx)}
-                  onDragOver={onDragOver}
-                  onDrop={() => onDrop(idx)}
+                  key={virtualRow.key}
+                  data-board-player-id={id}
+                  data-index={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
                   onClick={() => onOpenPlayer(id)}
                   className={`cursor-pointer border-b border-zinc-100 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
                     d ? 'opacity-50 line-through' : ''
-                  }`}
+                  } ${highlightPlayerId === id ? 'ring-2 ring-blue-500 ring-inset dark:ring-blue-400' : ''}`}
                 >
                   <td className="py-2 pr-2 font-mono text-zinc-500">{boardRank}</td>
                   <td className="py-2 pr-2 font-medium text-zinc-900 dark:text-zinc-100">{p.name}</td>
@@ -275,14 +312,14 @@ export function BigBoard({
                     <PositionPill pos={p.pos} />
                   </td>
                   <td className="py-2 pr-2 text-zinc-600 dark:text-zinc-400">{p.team}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.obp.toFixed(3)}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.slg.toFixed(3)}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.hr}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.netSb}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{getRotoValue(p, 'kbbPct').toFixed(1)}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.whip.toFixed(2)}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.era.toFixed(2)}</td>
-                  <td className="py-2 pr-2 font-mono tabular-nums">{p.roto.svH}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'obp')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'slg')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'hr')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'netSb')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'kbbPct')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'whip')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'era')}</td>
+                  <td className="py-2 pr-2 font-mono tabular-nums">{formatBigBoardRotoCell(p, 'svH')}</td>
                   <td className="py-2 pr-2 font-mono tabular-nums text-blue-600 dark:text-blue-400">
                     {rb ? rb.totalPoints.toFixed(1) : '—'}
                   </td>
@@ -313,6 +350,7 @@ export function BigBoard({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

@@ -15,12 +15,14 @@ const LABELS: Record<RotoKey, string> = {
 
 export function RotoBar({
   byCategory,
+  keys = [...ROTO_KEYS],
 }: {
   byCategory: Record<RotoKey, CategoryRankInfo>
+  keys?: RotoKey[]
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {ROTO_KEYS.map((key) => {
+      {keys.map((key) => {
         const info = byCategory[key]
         const pct =
           info.poolSize > 0
