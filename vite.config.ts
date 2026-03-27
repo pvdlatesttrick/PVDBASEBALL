@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
-  // GitHub Pages serves the site at /PVDBASEBALL/; local dev uses /
-  base: process.env.CI ? '/PVDBASEBALL/' : '/',
+  // Only set for GitHub Pages workflow (see deploy-pages.yml). Vercel/Netlify use "/".
+  base: process.env.GITHUB_PAGES === 'true' ? '/PVDBASEBALL/' : '/',
   plugins: [react()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
