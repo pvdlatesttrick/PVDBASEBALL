@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Player } from '@/types/player'
 import type { ConsensusPlayer } from '@/types/consensus'
+import { teamsForLeague } from '@/utils/leagueUtils'
 import { matchesPositionTab } from '@/utils/positionFilter'
 import { findPlayerIdByName } from '@/utils/playerLookup'
 
@@ -67,4 +68,15 @@ export function useFilteredConsensusPlayers(
       return true
     })
   }, [rows, playersById, draftedMap, filters])
+}
+
+/** Team dropdown options: all unique teams sorted, or AL/NL subset when a league is selected. */
+export function useTeamOptionsForLeague(
+  allTeamsSorted: string[],
+  leagueFilter: 'all' | 'AL' | 'NL'
+): string[] {
+  return useMemo(
+    () => teamsForLeague(allTeamsSorted, leagueFilter),
+    [allTeamsSorted, leagueFilter]
+  )
 }

@@ -10,9 +10,9 @@ export const POSITION_TABS: { id: string; label: string }[] = [
   { id: '2b', label: '2B' },
   { id: '3b', label: '3B' },
   { id: 'ss', label: 'SS' },
+  { id: 'if', label: 'IF' },
   { id: 'of', label: 'OF' },
   { id: 'dh', label: 'DH' },
-  { id: 'if', label: 'IF' },
 ]
 
 type LeagueFilter = 'all' | 'AL' | 'NL'

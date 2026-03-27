@@ -1,5 +1,6 @@
 import type { RawPlayer } from '@/data/rawPlayer'
 import type { PlayerStatLine } from '@/types/playerStatLine'
+import { primaryPosFromPos } from '@/utils/primaryPos'
 
 function hashName(s: string): number {
   let h = 2166136261
@@ -21,9 +22,8 @@ function jitter(seed: number, lo: number, hi: number): number {
   return lo + (hi - lo) * x
 }
 
-function isPitcherPos(pos: string): boolean {
-  const u = pos.toUpperCase()
-  return u.includes('SP') || u.includes('RP') || u === 'P'
+function isPitcherToken(t: string): boolean {
+  return t === 'SP' || t === 'RP'
 }
 
 export function buildStatLine(raw: RawPlayer): PlayerStatLine {
@@ -86,8 +86,9 @@ export function buildStatLine(raw: RawPlayer): PlayerStatLine {
   const h = hashName(raw.name)
   const seed = h % 9973
 
-  if (isPitcherPos(raw.primaryPos)) {
-    const isRp = raw.primaryPos === 'RP'
+  const primary = primaryPosFromPos(raw.pos)
+  if (isPitcherToken(primary)) {
+    const isRp = primary === 'RP'
     const ip = Math.round(jitter(seed, 175, 195) - t * 95)
     const era = 2.4 + t * 3.2 + jitter(seed + 1, -0.35, 0.35)
     const whip = 0.88 + t * 0.38 + jitter(seed + 2, -0.06, 0.06)

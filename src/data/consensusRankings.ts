@@ -1,7 +1,7 @@
 import type { ConsensusPlayer } from '@/types/consensus'
 import { RAW_ROSTER } from '@/data/rawRoster'
 import { calcAvgRank, calcStdDev } from '@/utils/consensusStats'
-import { getLeague } from '@/utils/teamLeague'
+import { getLeague } from '@/utils/leagueUtils'
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))

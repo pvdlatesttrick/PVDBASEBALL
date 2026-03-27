@@ -2,15 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PLAYERS } from '@/data/players'
 import { BigBoard } from '@/components/BigBoard'
 import { ConsensusBoard } from '@/components/ConsensusBoard'
+import { MatchupAnalyzer } from '@/components/MatchupAnalyzer'
 import { PlayerCard } from '@/components/PlayerCard'
 import { useDraftState } from '@/hooks/useDraftState'
 import { useRotoRankings } from '@/hooks/useRotoRankings'
-import { teamsForLeague } from '@/utils/teamLeague'
-import type { PlayerAvailFilter } from '@/hooks/useFilteredPlayers'
+import { useTeamOptionsForLeague, type PlayerAvailFilter } from '@/hooks/useFilteredPlayers'
+import { NewsProvider, useNews } from '@/context/NewsContext'
+import { OddsProvider } from '@/context/OddsContext'
+import { OddsMonitor } from '@/components/OddsMonitor'
+import { NewsMailbox } from '@/components/NewsMailbox'
+import { NewsPanel } from '@/components/NewsPanel'
 
-type View = 'draft' | 'consensus'
+type View = 'draft' | 'consensus' | 'matchup'
 
-export default function App() {
+function AppShell() {
+  const { unreadCount } = useNews()
+  const [newsOpen, setNewsOpen] = useState(false)
   const {
     order,
     playersById,
@@ -39,7 +46,7 @@ export default function App() {
   )
 
   const allTeams = useMemo(() => [...new Set(PLAYERS.map((p) => p.team))].sort(), [])
-  const teams = useMemo(() => teamsForLeague(allTeams, leagueFilter), [allTeams, leagueFilter])
+  const teams = useTeamOptionsForLeague(allTeams, leagueFilter)
 
   useEffect(() => {
     setTeamFilter('all')
@@ -87,8 +94,9 @@ export default function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-4 py-8 dark:bg-zinc-950">
+    <div className="min-h-screen bg-zinc-50 px-4 py-8 pb-28 dark:bg-zinc-950">
       <div className="mx-auto max-w-[1600px] space-y-4">
+        <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
             <button
@@ -113,17 +121,48 @@ export default function App() {
             >
               Consensus board
             </button>
+            <button
+              type="button"
+              onClick={() => setView('matchup')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                view === 'matchup'
+                  ? 'bg-blue-600 text-white dark:bg-blue-600'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+              }`}
+            >
+              Matchup analyzer
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={toggleDark}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            {dark ? 'Light mode' : 'Dark mode'}
-          </button>
+          <div className="flex items-center gap-2">
+            <NewsMailbox unreadCount={unreadCount} onClick={() => setNewsOpen((o) => !o)} />
+            <button
+              type="button"
+              onClick={toggleDark}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              {dark ? 'Light mode' : 'Dark mode'}
+            </button>
+          </div>
+        </div>
+        {newsOpen && (
+          <NewsPanel
+            onClose={() => setNewsOpen(false)}
+            boardTeamFilter={teamFilter}
+            teams={allTeams}
+            playersById={playersById}
+            onViewPlayerOnBoard={(id) => {
+              setNewsOpen(false)
+              setView('draft')
+              setSelectedId(id)
+              setHighlightPlayerId(id)
+            }}
+          />
+        )}
         </div>
 
-        {view === 'draft' ? (
+        {view === 'matchup' ? (
+          <MatchupAnalyzer />
+        ) : view === 'draft' ? (
           <BigBoard
             playersById={playersById}
             order={order}
@@ -146,7 +185,7 @@ export default function App() {
             onAvailFilterChange={setAvailFilter}
             highlightPlayerId={highlightPlayerId}
           />
-        ) : (
+        ) : view === 'consensus' ? (
           <ConsensusBoard
             search={search}
             onSearchChange={setSearch}
@@ -166,7 +205,7 @@ export default function App() {
             rotoMap={rotoMap}
             onViewOnBoard={onViewOnBoard}
           />
-        )}
+        ) : null}
       </div>
 
       <PlayerCard
@@ -192,6 +231,17 @@ export default function App() {
         }}
         onWatchlist={selectedId ? watchlist.has(selectedId) : false}
       />
+      <OddsMonitor />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <OddsProvider>
+      <NewsProvider>
+        <AppShell />
+      </NewsProvider>
+    </OddsProvider>
   )
 }

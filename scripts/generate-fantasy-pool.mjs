@@ -190,7 +190,7 @@ function main() {
   for (const p of raw) {
     const esc = (s) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
     lines.push(
-      `  { name: '${esc(p.name)}', pos: '${esc(p.pos)}', primaryPos: '${p.primaryPos}', team: '${p.team}', adp: ${p.adp}, posRank: '${esc(p.posRank)}' },`
+      `  { name: '${esc(p.name)}', pos: '${esc(p.pos)}', team: '${p.team}', adp: ${p.adp}, posRank: '${esc(p.posRank)}' },`
     )
   }
   lines.push(`]`)

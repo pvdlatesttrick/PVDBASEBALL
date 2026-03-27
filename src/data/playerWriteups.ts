@@ -1,6 +1,8 @@
 import type { RawPlayer } from '@/data/rawPlayer'
 import { RAW_ROSTER } from '@/data/rawRoster'
+import { primaryPosFromPos } from '@/utils/primaryPos'
 
+/** 1–2 sentence 2025 outlook keyed by player `name`. */
 export function buildWriteup(raw: RawPlayer): string {
   if (raw.name === 'Shohei Ohtani') {
     return (
@@ -20,7 +22,7 @@ export function buildWriteup(raw: RawPlayer): string {
             ? 'late-round'
             : 'deep-league'
 
-  const pos = raw.primaryPos
+  const pos = primaryPosFromPos(raw.pos)
   if (pos === 'SP') {
     return `${raw.name} projects as a ${tier} rotation arm for ${raw.team} in 2025 with innings and strikeout volume that play in roto. Monitor spring velo and role.`
   }

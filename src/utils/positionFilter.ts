@@ -1,4 +1,4 @@
-/** Position tab id: all | sp | rp | p | c | 1b | 2b | 3b | ss | of | dh | if */
+/** Position tab id: all | sp | rp | p | c | 1b | 2b | 3b | ss | if | of | dh */
 export function matchesPositionTab(pos: string, tab: string): boolean {
   const t = tab.toLowerCase()
   if (t === 'all') return true

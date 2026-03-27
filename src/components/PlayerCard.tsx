@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Player } from '@/types/player'
-import { getPlayerType, getRotoDisplayKeys } from '@/types/player'
+import { useNews } from '@/context/NewsContext'
+import {
+  getPlayerType,
+  getRotoDisplayKeys,
+  ROTO_HITTER_KEYS,
+  ROTO_PITCHER_KEYS,
+} from '@/types/player'
 import { PositionPill } from '@/components/PositionPill'
 import { StatGrid } from '@/components/StatGrid'
 import { RotoBar } from '@/components/RotoBar'
+import { SprayChart } from '@/components/SprayChart'
 import type { RotoBreakdown } from '@/hooks/useRotoRankings'
 
 function initials(name: string) {
@@ -16,6 +23,44 @@ function initials(name: string) {
 }
 
 const sectionLabel = 'text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-4 first:mt-0 mb-2'
+
+const RECENT_CAT: Record<string, string> = {
+  injury: 'Injury',
+  transaction: 'Transaction',
+  news: 'News',
+  prospect: 'Prospect',
+  roster: 'Roster',
+}
+
+function recentTimeAgo(d: Date): string {
+  const s = Math.floor((Date.now() - d.getTime()) / 1000)
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  if (s < 2592000) return `${Math.floor(s / 86400)}d ago`
+  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+}
+
+function PlayerRecentNews({ playerName }: { playerName: string }) {
+  const { filterByPlayer } = useNews()
+  const items = useMemo(() => filterByPlayer(playerName).slice(0, 3), [filterByPlayer, playerName])
+  if (items.length === 0) return null
+  return (
+    <section className="mt-6">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Recent news
+      </h3>
+      <ul className="space-y-2 border-t border-zinc-200 pt-2 text-sm dark:border-zinc-700">
+        {items.map((i) => (
+          <li key={i.id} className="leading-snug text-zinc-700 dark:text-zinc-300">
+            <span className="font-medium text-blue-600 dark:text-blue-400">[{RECENT_CAT[i.category] ?? i.category}]</span>{' '}
+            {i.headline.length > 100 ? `${i.headline.slice(0, 100)}…` : i.headline}{' '}
+            <span className="whitespace-nowrap text-xs text-zinc-400">{recentTimeAgo(i.publishedAt)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
 
 type Props = {
   player: Player | null
@@ -227,11 +272,31 @@ export function PlayerCard({
             )}
           </section>
 
+          {showHitting && player.hitting && player.advanced.kind === 'hitter' && (
+            <section className="mt-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Hit spray chart
+              </h3>
+              <SprayChart player={player} />
+            </section>
+          )}
+
           <section className="mt-6">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               Roto category ranks (pool)
             </h3>
-            {rotoBreakdown ? (
+            {rotoBreakdown && playerType === 'two-way' ? (
+              <div className="space-y-4">
+                <div>
+                  <h4 className={sectionLabel}>Hitting</h4>
+                  <RotoBar byCategory={rotoBreakdown.byCategory} keys={ROTO_HITTER_KEYS} />
+                </div>
+                <div>
+                  <h4 className={sectionLabel}>Pitching</h4>
+                  <RotoBar byCategory={rotoBreakdown.byCategory} keys={ROTO_PITCHER_KEYS} />
+                </div>
+              </div>
+            ) : rotoBreakdown ? (
               <RotoBar byCategory={rotoBreakdown.byCategory} keys={rotoKeys} />
             ) : (
               <p className="text-sm text-zinc-500">
@@ -255,6 +320,8 @@ export function PlayerCard({
               placeholder="Your notes persist locally…"
             />
           </section>
+
+          <PlayerRecentNews playerName={player.name} />
 
           <div className="mt-6 flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
             <button

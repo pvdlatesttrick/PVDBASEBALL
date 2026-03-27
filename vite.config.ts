@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
-  // Only set for GitHub Pages workflow (see deploy-pages.yml). Vercel/Netlify use "/".
+  // Node/build-time only (not exposed to the browser). Client code must use
+  // import.meta.env.VITE_* — see src/config/env.ts and .env.example.
+  // GitHub Pages workflow (see deploy-pages.yml). Vercel/Netlify use "/".
   base: process.env.GITHUB_PAGES === 'true' ? '/PVDBASEBALL/' : '/',
   plugins: [react()],
   resolve: {

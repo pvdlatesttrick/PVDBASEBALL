@@ -10,7 +10,7 @@ import type {
   PitchingAdvanced,
 } from '@/types/player'
 import { getPlayerType } from '@/types/player'
-import { getLeague } from '@/utils/teamLeague'
+import { getLeague } from '@/utils/leagueUtils'
 
 function rv(
   obp: number,
@@ -64,13 +64,14 @@ function toHittingAdv(s: PlayerStatLine): HittingAdvanced {
 }
 
 function toPitching(s: PlayerStatLine): PitchingStats {
+  const kbb = s.kbbPct ?? s.kBBPct ?? 16
   return {
     ip: s.ip ?? 150,
     era: s.era ?? 3.8,
     whip: s.whip ?? 1.2,
     k9: s.k9 ?? 8.5,
     bb9: s.bb9 ?? 3,
-    kbbPct: s.kbbPct ?? 16,
+    kbbPct: kbb,
     fip: s.fip ?? 3.9,
     xfip: s.xfip ?? 4,
     sv: s.sv ?? 0,

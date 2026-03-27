@@ -1,8 +1,7 @@
-/** Lightweight roster entry — identity + ADP seed; stats/writeups are layered separately. */
+/** Roster identity only — stats and writeups live in `playerStats.ts` / `playerWriteups.ts`. */
 export type RawPlayer = {
   name: string
   pos: string
-  primaryPos: string
   team: string
   adp: number
   posRank: string

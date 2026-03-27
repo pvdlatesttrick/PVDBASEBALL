@@ -1,6 +1,13 @@
 /**
- * Loose stat projection shape used by `data/statLineBuilder.ts` and `PLAYER_STATS`.
- * Maps onto `HittingStats` / `PitchingStats` / `AdvancedStats` in `buildPlayer`.
+ * Projected 2025 stat line — keyed by player name in `PLAYER_STATS`.
+ *
+ * Hitters: pa, avg, obp, slg, hr, rbi, r, sb, cs, bbPct, kPct, babip, hardHitPct,
+ * barrelPct, xba, xslg, exitVelo, launchAngle, sprintSpeed, chasePct, contactPct,
+ * swstrPct, pullPct, oppoPct, centerPct, fWAR
+ *
+ * Pitchers: ip, era, whip, k9, bb9, kbbPct | kBBPct, fip, xfip, siera, sv, holds, svh,
+ * stuffPlus, locationPlus, cswPct, gbPct, fbPct, hrFbPct, babipAllowed, hardHitAllowed,
+ * barrelAllowed, exitVeloAllowed, spinRate, fastballVelo, fWAR
  */
 export type PlayerStatLine = {
   // Hitters
@@ -21,7 +28,10 @@ export type PlayerStatLine = {
   whip?: number
   k9?: number
   bb9?: number
+  /** Pitching K−BB% */
   kbbPct?: number
+  /** Same as kbbPct (optional alias) */
+  kBBPct?: number
   fip?: number
   xfip?: number
   sv?: number

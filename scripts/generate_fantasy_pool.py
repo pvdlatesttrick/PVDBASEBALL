@@ -153,8 +153,8 @@ def main():
     ]
     for r in rows:
         lines.append(
-            "  { name: '%s', pos: '%s', primaryPos: '%s', team: '%s', adp: %s, posRank: '%s' },"
-            % (esc(r["name"]), esc(r["pos"]), r["primaryPos"], r["team"], r["adp"], esc(r["posRank"]))
+            "  { name: '%s', pos: '%s', team: '%s', adp: %s, posRank: '%s' },"
+            % (esc(r["name"]), esc(r["pos"]), r["team"], r["adp"], esc(r["posRank"]))
         )
     lines.append("]")
     lines.append("")

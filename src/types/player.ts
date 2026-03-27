@@ -124,12 +124,14 @@ export type RotoKey = (typeof ROTO_KEYS)[number]
 /** Lower stat value is better for these categories */
 export const ROTO_LOWER_IS_BETTER: ReadonlySet<RotoKey> = new Set(['whip', 'era'])
 
-const ROTO_HITTER_KEYS: RotoKey[] = ['obp', 'slg', 'hr', 'netSb']
-const ROTO_PITCHER_KEYS: RotoKey[] = ['kbbPct', 'whip', 'era', 'svH']
+/** Roto categories that apply to hitters (4×4 hitting side). */
+export const ROTO_HITTER_KEYS: RotoKey[] = ['obp', 'slg', 'hr', 'netSb']
+/** Roto categories that apply to pitchers. */
+export const ROTO_PITCHER_KEYS: RotoKey[] = ['kbbPct', 'whip', 'era', 'svH']
 
 export function getPlayerType(pos: string, name: string): PlayerType {
   if (name === 'Shohei Ohtani') return 'two-way'
-  const tokens = pos.split(/[/,]/).map((s) => s.trim().toUpperCase())
+  const tokens = pos.split(/[/,]/).map((s) => s.trim())
   if (tokens.some((t) => t === 'SP' || t === 'RP')) return 'pitcher'
   return 'hitter'
 }
