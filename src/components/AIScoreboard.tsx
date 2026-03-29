@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { getTodaysGamesSync } from '@/data/todaysGames'
+import { useTodaysGames } from '@/hooks/useTodaysGames'
 import { usePredictions } from '@/context/PredictionContext'
 import { generateModelInsights } from '@/utils/recordTracker'
 import { SeasonSummaryBar } from '@/components/SeasonSummaryBar'
@@ -40,7 +40,7 @@ export function AIScoreboard() {
 
   const [tab, setTab] = useState<Tab>('teams')
 
-  const slate = useMemo(() => getTodaysGamesSync(), [])
+  const { games: slate } = useTodaysGames()
   const timeByGameId = useMemo(() => {
     const m = new Map<string, string>()
     for (const g of slate) {

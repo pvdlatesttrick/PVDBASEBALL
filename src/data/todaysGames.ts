@@ -1,4 +1,5 @@
 import type { LineupSlot, MLBGame } from '@/types/matchup'
+import { fetchMlbGamesForDate, todayYmdET } from '@/services/mlbSchedule'
 
 export type { LineupSlot, MLBGame } from '@/types/matchup'
 
@@ -330,5 +331,12 @@ export async function fetchTodaysGames(_opts?: {
   source?: TodaysGamesSource
   date?: string
 }): Promise<MLBGame[]> {
-  return getTodaysGamesSync()
+  if (_opts?.source === 'static') return getTodaysGamesSync()
+  const date = _opts?.date ?? todayYmdET()
+  try {
+    const live = await fetchMlbGamesForDate(date)
+    return live.length ? live : getTodaysGamesSync()
+  } catch {
+    return getTodaysGamesSync()
+  }
 }

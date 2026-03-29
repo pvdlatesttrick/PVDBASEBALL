@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { GamePrediction } from '@/types/prediction'
-import { getTodaysGamesSync } from '@/data/todaysGames'
+import { fetchTodaysGames } from '@/data/todaysGames'
 import { BALLPARKS } from '@/data/ballparks'
 import { findGameOdds, useOdds } from '@/context/OddsContext'
 import { useNews } from '@/context/NewsContext'
@@ -166,7 +166,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
 
       setGenerating(true)
       try {
-        const games = getTodaysGamesSync()
+        const games = await fetchTodaysGames()
         const venues = [...new Set(games.map((g) => g.venue))]
         const weatherMap = new Map<string, Awaited<ReturnType<typeof getGameWeather>>>()
         await Promise.all(
@@ -197,9 +197,9 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
           const awayStats = getTeamStats(game.awayTeam)
           const ballpark = buildBallparkForGame(game.venue)
           const weather = weatherMap.get(game.venue) ?? FALLBACK_WEATHER
-          const pk =
-            pkMap.get(`${game.awayTeam}|${game.homeTeam}`) ??
-            null
+          const key = `${game.awayTeam}|${game.homeTeam}`
+          const lookedUp = pkMap.get(key) ?? null
+          const pk = game.id >= 100 ? game.id : lookedUp
 
           return generatePrediction(
             game,

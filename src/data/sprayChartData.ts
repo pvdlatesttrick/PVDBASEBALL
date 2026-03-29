@@ -1,36 +1,14 @@
 import type { Player } from '@/types/player'
+import type { BattedBallEvent } from '@/types/battedBall'
 import { polarToSvg } from '@/data/ballparks'
+import { SPRAY_EVENTS_BY_PLAYER_NAME } from '@/data/sprayChartData.gen'
+
+export type { BattedBallEvent }
 
 /**
  * Procedural batted-ball events per hitter (filtered by `playerId` via `getSprayEventsForPlayer`).
  * Volume: ADP ≤50 → 80–120; ADP 51–200 → 40–60; else fewer.
  */
-export type BattedBallEvent = {
-  id: number
-  playerId: number
-  date: string
-  opponent: string
-  x: number
-  y: number
-  type:
-    | 'single'
-    | 'double'
-    | 'triple'
-    | 'hr'
-    | 'lineout'
-    | 'flyout'
-    | 'groundout'
-    | 'popout'
-  exitVelo: number
-  launchAngle: number
-  distance: number
-  hardHit: boolean
-  pitcherHand: 'L' | 'R'
-  gameBoxScore: {
-    playerLine: string
-    teamScore: string
-  }
-}
 
 const OPP = [
   'vs NYY',
@@ -147,6 +125,9 @@ function depthForType(
  */
 export function getSprayEventsForPlayer(player: Player): BattedBallEvent[] {
   if (!player.hitting || player.advanced.kind !== 'hitter') return []
+
+  const real = SPRAY_EVENTS_BY_PLAYER_NAME[player.name]
+  if (real?.length) return real
 
   const adv = player.advanced
   const barrel = adv.barrelPct

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { MLBGame } from '@/types/matchup'
 import type { GameOdds } from '@/types/odds'
-import { getTodaysGamesSync } from '@/data/todaysGames'
+import { useTodaysGames } from '@/hooks/useTodaysGames'
 import { getPitcherSplits, type PitcherPlatoonSplits } from '@/data/pitcherSplits'
 import { getPitcherGameLog } from '@/data/pitcherGameLog'
 import { countBatterHands, findSimilarLineupComps } from '@/utils/lineupUtils'
@@ -184,8 +184,12 @@ function LineupColumn({
 
 export function MatchupAnalyzer() {
   const { games: oddsGames, loading: oddsLoading } = useOdds()
-  const games = useMemo(() => getTodaysGamesSync(), [])
-  const [gameId, setGameId] = useState(games[0]?.id ?? 1)
+  const { games, loading: slateLoading } = useTodaysGames()
+  const [gameId, setGameId] = useState(() => games[0]?.id ?? 0)
+  useEffect(() => {
+    if (!games.length) return
+    if (!games.some((g) => g.id === gameId)) setGameId(games[0]!.id)
+  }, [games, gameId])
   /** false: away offense vs home SP · true: home offense vs away SP */
   const [flipped, setFlipped] = useState(false)
 
@@ -250,9 +254,9 @@ export function MatchupAnalyzer() {
           Matchup analyzer
         </h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Platoon-weighted run projection · park factor · historical lineup comps (static slate — wire{' '}
-          <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">fetchTodaysGames</code> to MLB
-          Stats API)
+          Platoon-weighted run projection · park factor · historical lineup comps. Slate loads from MLB
+          Stats API (falls back to bundled sample if offline).
+          {slateLoading && ' Loading schedule…'}
         </p>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           For entertainment and fantasy purposes only.
