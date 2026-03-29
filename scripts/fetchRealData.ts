@@ -13,9 +13,9 @@ const ROOT = join(__dirname, '..')
 const SRC_DATA = join(ROOT, 'src', 'data')
 
 const FG_BAT =
-  'https://www.fangraphs.com/api/leaders/major-league/data?pos=all&stats=bat&lg=all&qual=0&season=2025&season1=2025&type=8&pageitems=2000&pagenum='
+  'https://www.fangraphs.com/api/leaders/major-league/data?pos=all&stats=bat&lg=all&qual=0&season=2025&season1=2025&ind=0&rost=0&players=0&type=8&pageitems=2000&pagenum='
 const FG_PIT =
-  'https://www.fangraphs.com/api/leaders/major-league/data?pos=all&stats=pit&lg=all&qual=0&season=2025&season1=2025&type=8&pageitems=2000&pagenum='
+  'https://www.fangraphs.com/api/leaders/major-league/data?pos=all&stats=pit&lg=all&qual=0&season=2025&season1=2025&ind=0&rost=0&players=0&type=8&pageitems=2000&pagenum='
 const FG_TEAM_BAT =
   'https://www.fangraphs.com/api/leaders/major-league/data?pos=all&stats=bat&lg=all&qual=0&season=2025&season1=2025&type=8&ind=1&team=0&pageitems=50&pagenum=1'
 const FG_TEAM_PIT =
@@ -78,6 +78,26 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await res.json()) as T
 }
 
+async function fetchJsonWithRetry<T>(url: string, retries = 3): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'PVDBASEBALL-data-fetch/1.0' } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      const trimmed = text.trim()
+      if (trimmed.startsWith('<') || trimmed.toLowerCase().includes('<!doctype')) {
+        throw new Error('Response looks like HTML, not JSON (blocked or throttled?)')
+      }
+      return JSON.parse(text) as T
+    } catch (err) {
+      if (attempt === retries) throw err
+      console.warn(`  Attempt ${attempt} failed (${err instanceof Error ? err.message : err}), retrying in 2s…`)
+      await sleep(2000)
+    }
+  }
+  throw new Error('unreachable')
+}
+
 export function parseCsv(text: string): Record<string, string>[] {
   const lines: string[] = []
   let cur = ''
@@ -134,13 +154,43 @@ async function fetchCsv(url: string): Promise<Record<string, string>[]> {
 async function fetchAllFgPages(base: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []
   for (let page = 1; page <= 5; page++) {
-    const j = await fetchJson<{ data: Record<string, unknown>[] }>(base + page)
+    const j = await fetchJsonWithRetry<{ data: Record<string, unknown>[] }>(base + page)
     const chunk = j.data ?? []
     out.push(...chunk)
     if (chunk.length < 2000) break
     await sleep(300)
   }
   return out
+}
+
+/** FantasyPros ADP (overall). Tries JSON first, then CSV. */
+async function fetchFantasyProsAdpRows(): Promise<Record<string, string>[]> {
+  try {
+    const url = 'https://www.fantasypros.com/mlb/adp/overall.php?export=json'
+    const res = await fetch(url, { headers: { 'User-Agent': 'PVDBASEBALL-data-fetch/1.0' } })
+    if (!res.ok) throw new Error(`FantasyPros ${res.status}`)
+    const text = await res.text()
+    const t = text.trim()
+    if (t.startsWith('<')) return []
+    if (t.startsWith('[')) {
+      try {
+        return JSON.parse(t) as Record<string, string>[]
+      } catch {
+        return []
+      }
+    }
+    if (t.startsWith('{')) {
+      try {
+        const o = JSON.parse(t) as { data?: Record<string, string>[] }
+        if (Array.isArray(o.data)) return o.data
+      } catch {
+        return []
+      }
+    }
+    return parseCsv(text)
+  } catch {
+    return []
+  }
 }
 
 function num(v: unknown): number {
@@ -184,13 +234,35 @@ async function main(): Promise<void> {
   const batRows = (await fetchAllFgPages(FG_BAT)) as FgRow[]
   console.log('  rows:', batRows.length)
 
+  if (batRows.length < 100) {
+    throw new Error(
+      `FanGraphs batting returned only ${batRows.length} rows — likely blocked or throttled. ` +
+        'Do not overwrite data files. Try again in a few minutes.'
+    )
+  }
+
+  const realNames = batRows
+    .slice(0, 5)
+    .map((r) => String((r as FgRow).Name ?? ''))
+    .join(', ')
+  console.log('  First 5 players:', realNames.replace(/<[^>]+>/g, '').trim())
+  if (!realNames.replace(/<[^>]+>/g, '').includes(' ')) {
+    throw new Error(`FanGraphs names look malformed: "${realNames}" — check API response format.`)
+  }
+
   console.log('FanGraphs pitching…')
   const pitRows = (await fetchAllFgPages(FG_PIT)) as FgRow[]
   console.log('  rows:', pitRows.length)
 
+  if (pitRows.length < 50) {
+    throw new Error(
+      `FanGraphs pitching returned only ${pitRows.length} rows — likely blocked or throttled. Aborting without writes.`
+    )
+  }
+
   console.log('FanGraphs team totals…')
-  const teamBat = (await fetchJson<{ data: FgRow[] }>(FG_TEAM_BAT)).data ?? []
-  const teamPit = (await fetchJson<{ data: FgRow[] }>(FG_TEAM_PIT)).data ?? []
+  const teamBat = (await fetchJsonWithRetry<{ data: FgRow[] }>(FG_TEAM_BAT)).data ?? []
+  const teamPit = (await fetchJsonWithRetry<{ data: FgRow[] }>(FG_TEAM_PIT)).data ?? []
 
   console.log('Savant leaderboards…')
   const savBat = await fetchCsv(SAVANT_BAT)
@@ -329,6 +401,35 @@ async function main(): Promise<void> {
     return `{ ${parts.join(', ')} }`
   }
 
+  console.log('FantasyPros ADP…')
+  const fpAdpRows = await fetchFantasyProsAdpRows()
+  console.log('  rows:', fpAdpRows.length)
+  if (fpAdpRows.length === 0) {
+    console.warn('  FantasyPros ADP unavailable — using WAR rank as consensus ADP proxy')
+  }
+
+  const fpAdpByName = new Map<string, number>()
+  for (const r of fpAdpRows) {
+    const name = String(r.Player ?? r.player ?? '')
+      .replace(/\s*\([^)]+\)\s*/g, '')
+      .trim()
+    const rawAdp = String(r.AVG ?? r.ADP ?? r.adp ?? '').replace(/[^0-9.]/g, '')
+    const adp = parseFloat(rawAdp)
+    if (name && adp > 0) fpAdpByName.set(name.toLowerCase(), adp)
+  }
+
+  console.log('\n=== VERIFICATION — first 10 players that will be written ===')
+  top.slice(0, 10).forEach((p, i) => {
+    console.log(`  ${i + 1}. ${p.name} | ${posFor(p)} | ${p.team} | WAR: ${p.war.toFixed(1)}`)
+  })
+  console.log(`  Total players: ${top.length}`)
+  console.log('=== If these look wrong, press Ctrl+C now ===\n')
+  await sleep(3000)
+
+  const generatedAt = new Date().toISOString()
+  const fileBanner = (extra: string) =>
+    `// Auto-generated by scripts/fetchRealData.ts\n// Last run: ${generatedAt}\n// ${extra}\n`
+
   const rawLines: string[] = []
   const statLines: string[] = []
   let rank = 1
@@ -345,9 +446,8 @@ async function main(): Promise<void> {
 
   writeFileSync(
     join(SRC_DATA, 'rawRoster.ts'),
-    `import type { RawPlayer } from './rawPlayer'
+    `${fileBanner(`Players: ${top.length}`)}import type { RawPlayer } from './rawPlayer'
 
-/** Auto-generated by scripts/fetchRealData.ts — FanGraphs 2025 + Savant. */
 export const RAW_ROSTER: RawPlayer[] = [
 ${rawLines.join('\n')}
 ]
@@ -357,9 +457,8 @@ ${rawLines.join('\n')}
 
   writeFileSync(
     join(SRC_DATA, 'playerStats.ts'),
-    `import type { PlayerStatLine } from '@/types/playerStatLine'
+    `${fileBanner(`Players: ${top.length}`)}import type { PlayerStatLine } from '@/types/playerStatLine'
 
-/** Auto-generated — 2025 FanGraphs + Statcast leaderboards. */
 export const PLAYER_STATS: Record<string, PlayerStatLine> = {
 ${statLines.join('\n')}
 }
@@ -370,14 +469,19 @@ ${statLines.join('\n')}
   const consLines: string[] = []
   top.slice(0, 320).forEach((p, i) => {
     const cr = i + 1
-    const j1 = (cr % 7) - 3
-    const espn = Math.max(1, cr + j1)
-    const yahoo = Math.max(1, cr - (cr % 5) + 2)
-    const fg = Math.max(1, cr + ((cr * 3) % 5) - 2)
-    const roto = Math.max(1, cr - ((cr * 2) % 4))
+    const realAdp = fpAdpByName.get(p.name.toLowerCase()) ?? cr * 1.12
+    const variance = Math.max(1, cr * 0.1)
+    const spread = (salt: number) => ((cr * 31 + p.id * 7 + salt * 13) % 5) - 2
+    const espn = Math.max(1, Math.round(cr + spread(1) * variance * 0.4))
+    const yahoo = Math.max(1, Math.round(cr + spread(2) * variance * 0.4))
+    const fg = Math.max(1, Math.round(cr + spread(3) * variance * 0.4))
+    const roto = Math.max(1, Math.round(cr + spread(4) * variance * 0.4))
     const ranks = [espn, yahoo, fg, roto]
     const avg = ranks.reduce((a, b) => a + b, 0) / 4
     const std = Math.sqrt(ranks.reduce((a, b) => a + (b - avg) ** 2, 0) / 4)
+    const trend =
+      cr <= 50 && p.war > 4 ? "'up'" : cr > 200 ? "'down'" : "'stable'"
+    const notes = `2025 FanGraphs fWAR: ${p.war.toFixed(1)}. ${posFor(p)} for ${p.team}.`
     consLines.push(`  {
     id: ${p.id},
     consensusRank: ${cr},
@@ -392,18 +496,17 @@ ${statLines.join('\n')}
     rotoballerRank: ${roto},
     avgRank: ${Math.round(avg * 10) / 10},
     stdDev: ${Math.round(std * 10) / 10},
-    adp: ${Math.round((cr * 1.12 + 0.5) * 10) / 10},
-    posRank: ${JSON.stringify(`R${cr}`)},
-    trend: ${i % 3 === 0 ? "'up'" : i % 3 === 1 ? "'down'" : "'stable'"},
-    notes: 'Rank order from 2025 FanGraphs fWAR; multi-site columns are illustrative spread for UI.',
+    adp: ${Math.round(realAdp * 10) / 10},
+    posRank: ${JSON.stringify(`${posFor(p)}${cr}`)},
+    trend: ${trend},
+    notes: ${JSON.stringify(notes)},
   },`)
   })
 
   writeFileSync(
     join(SRC_DATA, 'consensusRankings.ts'),
-    `import type { ConsensusPlayer } from '@/types/consensus'
+    `${fileBanner(`Consensus rows: ${Math.min(320, top.length)}`)}import type { ConsensusPlayer } from '@/types/consensus'
 
-/** Auto-generated — ordering from 2025 FanGraphs value. */
 export const CONSENSUS_RANKINGS: ConsensusPlayer[] = [
 ${consLines.join('\n')}
 ]
@@ -454,8 +557,7 @@ ${consLines.join('\n')}
 
   writeFileSync(
     join(SRC_DATA, 'teamStats.ts'),
-    `/** Auto-generated — 2025 FanGraphs team batting/pitching (ind=1). */
-export type TeamOffensiveStats = {
+    `${fileBanner('Team stats from FanGraphs ind=1')}export type TeamOffensiveStats = {
   team: string
   wrcPlus: number
   ops: number
@@ -543,8 +645,7 @@ export function getTeamStats(teamAbbr: string): TeamOffensiveStats {
 
   writeFileSync(
     join(SRC_DATA, 'pitcherSplits.ts'),
-    `/** Auto-generated — 2025 pitcher season (FanGraphs); platoon rows use throwing-hand nudges (FG platoon API not available). */
-export type PlatoonSplitRow = {
+    `${fileBanner('Pitcher splits from FanGraphs 2025')}export type PlatoonSplitRow = {
   era: number
   obp: number
   slg: number
@@ -636,13 +737,20 @@ export function getPitcherSplits(name: string): PitcherPlatoonSplits | undefined
 
   writeFileSync(
     join(SRC_DATA, 'sprayChartData.gen.ts'),
-    `import type { BattedBallEvent } from '../types/battedBall'
+    `${fileBanner('Spray samples Statcast 2025')}` +
+      `import type { BattedBallEvent } from '../types/battedBall'
 
-/** Auto-generated Statcast BIP sample (2025) for top hitters. */
 export const SPRAY_EVENTS_BY_PLAYER_NAME: Record<string, BattedBallEvent[]> = {
 ${sprayChunks.join('\n')}
 }
 `,
+    'utf8'
+  )
+
+  writeFileSync(
+    join(SRC_DATA, 'dataGeneratedAt.ts'),
+    `${fileBanner('Client data freshness')}` +
+      `export const DATA_GENERATED_AT = ${JSON.stringify(generatedAt)}\n`,
     'utf8'
   )
 

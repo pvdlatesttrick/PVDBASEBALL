@@ -12,11 +12,7 @@ function lu(...rows: readonly [string, string, 'L' | 'R' | 'S'][]): LineupSlot[]
   }))
 }
 
-/**
- * Static slate — swap `fetchTodaysGames` implementation to call MLB Stats API when ready:
- * `GET https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD`
- * (no API key). Map `games[].teams` + probable pitchers + lineups from `live` feed or gameday.
- */
+/** Static fallback slate when the live MLB Stats API returns nothing or errors — see `fetchMlbGamesForDate` in `services/mlbSchedule.ts`. */
 export const STATIC_TODAYS_GAMES: MLBGame[] = [
   {
     id: 1,
@@ -323,10 +319,7 @@ export function getTodaysGamesSync(): MLBGame[] {
   return STATIC_TODAYS_GAMES
 }
 
-/**
- * Async boundary for MLB Stats API — replace body with `fetch` to
- * `statsapi.mlb.com/api/v1/schedule` + box/lineup endpoints; map into `MLBGame[]`.
- */
+/** Prefer live schedule from MLB Stats API (`fetchMlbGamesForDate`); fall back to `STATIC_TODAYS_GAMES`. */
 export async function fetchTodaysGames(_opts?: {
   source?: TodaysGamesSource
   date?: string

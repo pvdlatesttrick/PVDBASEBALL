@@ -5,6 +5,8 @@ import { buildStatLine } from '@/data/statLineBuilder'
 import { buildPlayer } from '@/data/buildPlayer'
 import type { Player } from '@/types/player'
 
+export { DATA_GENERATED_AT } from '@/data/dataGeneratedAt'
+
 /** Merges `RAW_ROSTER` + `PLAYER_STATS` + `PLAYER_WRITEUPS` into `Player[]`. */
 export const PLAYERS: Player[] = RAW_ROSTER.map((raw, i) => {
   const stats = PLAYER_STATS[raw.name] ?? buildStatLine(raw)
